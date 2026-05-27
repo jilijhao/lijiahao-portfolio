@@ -1,6 +1,4 @@
-import 输入 { NextConfig } from "next";
-
-const isProd = process.env.NODE_ENV === "production";
+import type { NextConfig } from "next";
 
 const isProd = process.env.NODE_ENV === "production";
 
@@ -14,6 +12,8 @@ const nextConfig: NextConfig = {
   basePath: isProd ? "/lijiahao-portfolio" : "",
 
   assetPrefix: isProd ? "/lijiahao-portfolio/" : "",
+
+  trailingSlash: true,
 };
 
 export default nextConfig;
