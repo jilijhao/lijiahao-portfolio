@@ -25,11 +25,12 @@ export default function Hero() {
           </div>
 
           <h1 className="text-6xl font-black md:text-8xl">
-            李家豪
+            构建 AI 驱动的企业数字化解决方案
           </h1>
 
           <h2 className="mt-4 text-2xl text-zinc-400">
-            Full Stack Developer · AI Engineer
+            专注 AI 智能体、企业自动化流程、
+            RPA、低代码平台与现代 Web 应用开发。
           </h2>
 
           <p className="mt-8 max-w-2xl text-lg text-zinc-500">

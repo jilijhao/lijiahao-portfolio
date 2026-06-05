@@ -24,3 +24,18 @@ body {
 
   background-size: 40px 40px;
 }
+
+section {
+  position: relative;
+}
+
+section::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at center,
+      rgba(59, 130, 246, .05),
+      transparent 70%);
+  pointer-events: none;
+}
