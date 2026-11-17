@@ -9,9 +9,9 @@
 - 产物是纯静态站点，部署在 GitHub Pages 子路径 `/lijiahao-portfolio`。
 - 线上地址：https://jilijhao.github.io/lijiahao-portfolio/
 - 没有后端、没有数据库、没有文章系统。项目窗口当前是**空状态**，等内容补齐。
-- 随笔**唯一的写入入口是飞书多维表格**（「个人站随笔」，base `C0YpbtD3Jaik05suk4ZcB2JEnEb`，table `tblRPVQVpSdBylCc`）。站点只读。
-- `data/memos.json` 是**生成物**，由 `scripts/sync-memos.mjs` 产出，不要手改。同步规则：跳过「发布」未勾选的行、跳过空行、时间优先取「时间」字段、缺省回落到「创建时间」（不能用 `Date.now()` 兜底，否则每次输出都不同、永不幂等）、按时间倒序。
-- 多维表格的 API 需要 `app_secret` 换 `tenant_access_token`，**密钥不能进浏览器**，所以同步只能发生在构建前（Actions 读 Secrets）或本地（`lark-cli` 导出 NDJSON 再喂脚本）。站点里不要再加任何写入表单或 Token 输入框。
+- 随笔**在页面上直接写**：站主用自己浏览器里的 GitHub Token 调 Contents API 提交 `data/memos.json`，push 后 Actions 自动重建。访客只读。
+- 写飞书这条路走不通：飞书换 `user_access_token` 时 `client_secret` 是必填的（`code_verifier` 只是 PKCE 的补充，不能替代密钥），secret 进浏览器就等于公开。静态站没有地方藏它。
+- `scripts/sync-memos.mjs` 保留为**一次性迁移工具**（把飞书表格导出成 JSON），CI 不再调用它——构建时从外部源覆盖这个文件会把页面刚写的内容冲掉。
 
 ## 关键路径
 
@@ -53,16 +53,18 @@ pnpm lint     # ESLint
 10. **窄屏断点同时覆盖横屏手机**：条件是 `(max-width: 767px), (max-height: 460px) and (max-width: 900px)`。手机横屏宽度 >768 但高度只有 ~375，只按宽度判断会掉进桌面规则，窗口比视口还高、底部直接跑出屏幕。
 11. **窄屏下窗口只有一个**：窗口高度随内容自适（`height: auto` + `max-height`），叠放时后面的窗口会从前面下方露出一截，所以 `.win-shell:not(.is-active)` 直接 `display: none`。配套地，`Desktop.tsx` 用派生出来的 `activeWindow` 而不是裸的 `activeId` —— 否则关掉当前窗口后激活态还指向已关闭的窗口，手机上会一个窗口都不显示。
 12. **窗口尺寸在 resize 时要重算，不能只钳位置**：只钳 `x/y` 的话，桌面切到横屏时 `w/h` 还是旧值。`Desktop.tsx` 的 `onResize` 用 `Math.min(state.w, fit.w)` 收一次尺寸。
-13. **外部内容源失败不能阻断发布**：`scripts/sync-memos.mjs` 在接口报错时打印 `SYNC_FAILED`、保留原 `data/memos.json`、退出码 0，workflow 里再把它翻成 `::warning::`。想让同步失败就挂掉构建必须显式加 `--strict`。这条不要反着改 —— 飞书权限过期或抖动一天，站点不该跟着发不出去。
+13. **写入必须基于远端增量，不能整体覆盖**：页面加载的是构建快照，可能已落后（另一台设备刚写过）。`lib/memos.ts` 的 `addMemo` / `removeMemo` 每次先 `readRemote()` 读仓库真实内容，再增删，最后才 PUT。**不要改回「拿页面里的数组直接提交」**——那会把别处刚写的内容冲掉，这是静默的数据丢失，测试里已经用「旧快照下删 A、B 必须幸存」验证过。
+14. **构建时不要从外部源覆盖 `data/memos.json`**：页面写入的入口就是这个文件，CI 里再加一步同步（飞书/别的源）会把刚写的内容冲掉。要批量导入，本地跑脚本 → 确认 diff → 再提交。
 
 ## 内容维护
 
 - 改定位、空状态提示、便签文案 → 改 `lib/desktop.ts` 的 `placeholder`。当前这些是**占位文案**，新定位定下来后整体替换。
 - 改姓名、邮箱、数字、技能、教育 → 改 `lib/data.ts`。
-- 写一条随笔 → 在飞书多维表格「个人站随笔」里加一行、勾上「发布」，然后等 Actions 定时同步（每 6 小时，北京 02/08/14/20 点）或在 Actions 页面点 `Run workflow` 立刻生效。本地手动同步：`lark-cli base +record-list --format ndjson --output ./memos.ndjson --overwrite` 之后 `node scripts/sync-memos.mjs --from-ndjson ./memos.ndjson`。
-- 排查同步问题 → 加 `--strict` 跑一次，让真实错误冒出来而不是被降级吞掉。
-- **仓库里的 `data/memos.json` 是「降级兜底快照」**：CI 只在构建时同步、不回写仓库，所以某次接口失败降级时，线上退回去的就是仓库里这份。本地跑完 `pnpm sync:memos` 且结果有变化时，顺手把 `data/memos.json` 一起提交，快照才不会太旧。不要手写内容，只能由脚本生成。
-- 不要手改 `data/memos.json`——它是 `scripts/sync-memos.mjs` 的产物，下次同步会被覆盖。
+- 写一条随笔 → 直接打开站点，点 Dock 的「随笔」。
+  - 第一次要先启用写入：建一个 Fine-grained token（只勾 `lijiahao-portfolio` 的 `Contents: Read and write`），粘进页面。每台设备各一次。
+  - 写完约 1 分钟随 Actions 重建生效；期间条目上会标「部署中」。
+- 换设备/换浏览器 → 要重新粘一次 Token（存在 `localStorage` 的 `desktop.gh-token.v1`，不跟随账号）。想撤销就在 GitHub 上把 token 删掉，或页面底部点「移除」。
+- 从飞书批量导入历史内容 → 本地跑 `scripts/sync-memos.mjs`，看清 diff 再提交（见 README「可选：从飞书批量导入」）。别把它加回 CI。
 - 改窗口名称、图标、尺寸、Dock 顺序 → 改 `lib/desktop.ts` 的 `APPS`。
 - 新增一个窗口：① `APPS` 加一项（`window` 尺寸 + `offset` 错位序号）；② `AppId` / `IconKey` 补类型；③ `windows/index.tsx` 加内容组件；④ `Desktop.tsx` 的 `windowBody` 加分支。
 - 项目内容补齐时，替换 `ProjectsWindow` 里的骨架卡片，`placeholder.projectsEmpty*` 一并删除。

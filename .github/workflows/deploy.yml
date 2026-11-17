@@ -3,12 +3,8 @@ name: Deploy Next.js site to Pages
 on:
   push:
     branches: ["main"]
-  # 允许在 Actions 页面手动触发（飞书里改完想立刻生效时用）
+  # 允许在 Actions 页面手动触发（不想等 push 时用）
   workflow_dispatch:
-  # 定时把飞书表格的最新内容拉过来。cron 是 UTC，对应北京时间 02/08/14/20 点。
-  # 备注：公开仓库连续 60 天无提交，schedule 会被 GitHub 自动停用，届时来 Actions 页面点一次启用即可。
-  schedule:
-    - cron: "0 */6 * * *"
 
 permissions:
   contents: read
@@ -32,20 +28,9 @@ jobs:
         with:
           node-version: 20
 
-      # 从飞书多维表格拉随笔写成 data/memos.json。
-      # 没配 secrets 时会自己跳过；接口出错时脚本会降级并保留原文件，
-      # 站点照常发布（内容源出问题不该把站点拖下水）。这里再把降级翻成醒目警告。
-      - name: Sync memos from Feishu
-        run: |
-          node scripts/sync-memos.mjs | tee /tmp/sync-memos.log
-          if grep -qE "SYNC_FAILED|未配置飞书" /tmp/sync-memos.log; then
-            echo "::warning::随笔没有同步成功，站点沿用了上一次的内容。原因见上方日志。"
-          fi
-        env:
-          FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
-          FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
-          FEISHU_BITABLE_TOKEN: ${{ secrets.FEISHU_BITABLE_TOKEN }}
-          FEISHU_TABLE_ID: ${{ secrets.FEISHU_TABLE_ID }}
+      # 随笔的写入入口在页面里（站主用自己的 GitHub 令牌提交 data/memos.json），
+      # 所以构建时不能再从外部源覆盖这个文件——那会把页面刚写的内容冲掉。
+      # 想从飞书批量导入，用 scripts/sync-memos.mjs 在本地跑，确认后再提交。
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4

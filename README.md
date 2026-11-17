@@ -62,34 +62,43 @@ pnpm build    # 产物在 out/
 
 组件只负责渲染，不含硬编码业务文案。不要写手机号、薪资、求职意向等私人信息到公开仓库。
 
-## 随笔：飞书多维表格
+## 随笔：在页面上直接写
 
-写的地方是飞书，站点只读。多维表格的 API 需要 `app_secret` 换 `tenant_access_token`，密钥不能进浏览器，所以同步放在构建前做。
+写的地方就是站点本身。GitHub Pages 没有后端，所以写入靠站主自己浏览器里的
+GitHub Token 直接调 Contents API 提交 `data/memos.json`，提交后 Actions 自动重建，
+约 1 分钟后全站生效。访客只读。
 
-**表格结构**（[个人站随笔](https://ycnlrrcsi8yp.feishu.cn/base/C0YpbtD3Jaik05suk4ZcB2JEnEb)）：
+**为什么不让页面直接写飞书**：飞书换 `user_access_token` 时 `client_secret` 是必填的
+（`code_verifier` 只是 PKCE 的补充，不能替代密钥），secret 一进浏览器就等于公开。
+静态站没有地方藏它，所以写入只能走 GitHub 这条自带鉴权的路。
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| 内容 | 多行文本 | 必填，空行会被忽略 |
-| 时间 | 日期 | 可选；不填就用「创建时间」 |
-| 创建时间 | 自动 | 系统生成，用来兜底排序 |
-| 发布 | 复选框 | **取消勾选 = 草稿，不上站**；新增行默认不勾，记得勾上 |
+**站主开启写入**（每台设备各一次）：
 
-**同步**：`node scripts/sync-memos.mjs` 把表格写成 `data/memos.json`，按时间倒序、跳过草稿与空行、内容没变时不写文件（打印 `NO_CHANGE`）。
+1. 打开 <https://github.com/settings/tokens?type=beta> 建一个 Fine-grained token
+2. Repository access 只选 `lijiahao-portfolio`；Permissions 里 `Contents` 设为 `Read and write`
+3. 到站点点「随笔」→「想在这里写？先在这台设备启用写入」→ 粘贴 → 保存并校验
+4. Token 只存在该设备的 `localStorage`，不进仓库、不发给第三方；随时可在 GitHub 撤销，或在页面底部点「移除」
 
-**失败不影响发布**：接口报错（权限没开、token 过期、飞书抖动）时脚本会打印 `SYNC_FAILED` 并保留上一次的 `data/memos.json`，退出码 0 —— 内容源坏了不该把站点拖下水，退化行为是「随笔停在上一版」。本地排查想让它硬失败，加 `--strict`。
+**并发安全**：页面加载的是构建快照，可能已经落后（比如另一台设备刚写过）。
+所以每次写入都先读仓库当前内容再做增量（`addMemo` / `removeMemo`），
+不会用页面里的数组整体覆盖——否则会把别处刚写的内容冲掉。
 
-两种接入方式，任选其一：
+### 可选：从飞书批量导入
 
-1. **GitHub Actions 直连**（已配好，全自动）：飞书自建应用 `cli_aa769b3b90f8dc09`，四个值 `FEISHU_APP_ID` / `FEISHU_APP_SECRET` / `FEISHU_BITABLE_TOKEN`（= `C0YpbtD3Jaik05suk4ZcB2JEnEb`）/ `FEISHU_TABLE_ID`（= `tblRPVQVpSdBylCc`）已写进仓库 Secrets。workflow 每 6 小时自动跑一次（北京 02/08/14/20 点），也可以在 Actions 页面点 `Run workflow` 立刻同步。
-2. **本地手动同步**（不用等定时）：用 `lark-cli` 导出 NDJSON 再喂给脚本：
-   ```bash
-   lark-cli base +record-list --base-token C0YpbtD3Jaik05suk4ZcB2JEnEb \
-     --table-id tblRPVQVpSdBylCc \
-     --format ndjson --output ./memos.ndjson --overwrite --as user
-   node scripts/sync-memos.mjs --from-ndjson /tmp/memos.ndjson
-   ```
-   注意 `--output` 要配 `--overwrite`，否则同名文件存在时会静默不写。
+`scripts/sync-memos.mjs` 还能把飞书多维表格「个人站随笔」
+（base `C0YpbtD3Jaik05suk4ZcB2JEnEb`，table `tblRPVQVpSdBylCc`）
+导出成 `data/memos.json`，用来一次性搬迁历史内容。
+CI **不再**调用它——构建时若从外部源覆盖这个文件，会把页面上刚写的内容冲掉。
+
+```bash
+lark-cli base +record-list --base-token C0YpbtD3Jaik05suk4ZcB2JEnEb \
+  --table-id tblRPVQVpSdBylCc \
+  --format ndjson --output ./memos.ndjson --overwrite --as user
+node scripts/sync-memos.mjs --from-ndjson ./memos.ndjson   # 加 --strict 让错误直接抛出
+```
+
+表格结构：内容（多行文本，必填）/ 时间（日期，可空，空则回落到「创建时间」）/
+创建时间（系统自动）/ 发布（复选框，不勾视为草稿）。
 
 ## 部署
 
