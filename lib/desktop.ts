@@ -63,7 +63,7 @@ export const APPS: AppMeta[] = [
     name: "随笔",
     iconKey: "pencil",
     accent: ["#6ee7b7", "#0d9488"],
-    window: { w: 520, h: 400, offset: 3 },
+    window: { w: 560, h: 560, offset: 3 },
     hint: "想法与记录",
   },
   {
