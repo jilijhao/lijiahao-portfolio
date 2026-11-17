@@ -1,26 +1,6 @@
-import About from "@/components/About";
-import Contact from "@/components/Contact";
-import Experience from "@/components/Experience";
-import Footer from "@/components/Footer";
-import Hero from "@/components/Hero";
-import Navbar from "@/components/Navbar";
-import Projects from "@/components/Projects";
-import Skills from "@/components/Skills";
+import Desktop from "@/components/desktop/Desktop";
 
-/** 单页作品集：所有区块按叙事顺序组合。 */
+/** 桌面版首页：所有内容以可拖拽窗口的形式呈现。 */
 export default function Home() {
-  return (
-    <>
-      <Navbar />
-      <main>
-        <Hero />
-        <About />
-        <Skills />
-        <Experience />
-        <Projects />
-        <Contact />
-      </main>
-      <Footer />
-    </>
-  );
+  return <Desktop />;
 }
