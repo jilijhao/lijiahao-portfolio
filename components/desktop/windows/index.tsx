@@ -1,3 +1,4 @@
+import { useState, useSyncExternalStore } from "react";
 import { FaGithub } from "react-icons/fa";
 import { HiOutlineExternalLink, HiOutlineFolder, HiOutlineMail } from "react-icons/hi";
 import {
@@ -48,7 +49,13 @@ export function WelcomeWindow({ onOpen }: { onOpen: OpenFn }) {
         ))}
       </div>
 
-      <p className="win-hint">拖动标题栏移动窗口，双击标题栏最大化，Esc 关闭当前窗口。</p>
+      {/* 两套提示：手机上拖拽 / 双击 / Esc 都不成立，用样式按断点切换 */}
+      <p className="win-hint hint-pointer">
+        拖动标题栏移动窗口，双击标题栏最大化，Esc 关闭当前窗口。
+      </p>
+      <p className="win-hint hint-touch">
+        点标题栏左侧的红点关闭窗口，用底部程序坞切换。
+      </p>
     </div>
   );
 }
@@ -134,23 +141,171 @@ export function ProjectsWindow({ onOpen }: { onOpen: OpenFn }) {
 }
 
 /** 随笔窗口：暂无内容。 */
+/* ============ 随笔 ============ */
+
+type Memo = { id: string; text: string; at: number };
+
+/** 随笔存在浏览器本地，换设备 / 换浏览器 / 清缓存都会丢，所以只当随手记用。 */
+const MEMO_KEY = "desktop.memos.v1";
+
+const EMPTY_MEMOS: Memo[] = [];
+let memoCache: Memo[] | null = null;
+const memoListeners = new Set<() => void>();
+
+function readMemos(): Memo[] {
+  try {
+    const raw = window.localStorage.getItem(MEMO_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (item): item is Memo =>
+        !!item &&
+        typeof (item as Memo).text === "string" &&
+        typeof (item as Memo).at === "number",
+    );
+  } catch {
+    return [];
+  }
+}
+
+/** 用 useSyncExternalStore 而不是「effect 里 setState」：
+ *  一是静态导出时服务端没有 localStorage，首屏必须与客户端一致；
+ *  二是多个标签页改随笔能自动同步。 */
+function memoSnapshot(): Memo[] {
+  if (memoCache === null) memoCache = readMemos();
+  return memoCache;
+}
+
+function memoServerSnapshot(): Memo[] {
+  return EMPTY_MEMOS;
+}
+
+function subscribeMemos(listener: () => void) {
+  memoListeners.add(listener);
+  const onStorage = (event: StorageEvent) => {
+    if (event.key !== null && event.key !== MEMO_KEY) return;
+    memoCache = readMemos();
+    memoListeners.forEach((fn) => fn());
+  };
+  window.addEventListener("storage", onStorage);
+  return () => {
+    memoListeners.delete(listener);
+    window.removeEventListener("storage", onStorage);
+  };
+}
+
+function commitMemos(next: Memo[]) {
+  memoCache = next;
+  try {
+    window.localStorage.setItem(MEMO_KEY, JSON.stringify(next));
+  } catch {
+    /* 无痕模式或配额满：当前会话照样能看，只是不会留存 */
+  }
+  memoListeners.forEach((fn) => fn());
+}
+
+function formatTime(at: number) {
+  const d = new Date(at);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(
+    d.getHours(),
+  )}:${pad(d.getMinutes())}`;
+}
+
 export function MemosWindow() {
+  const memos = useSyncExternalStore(
+    subscribeMemos,
+    memoSnapshot,
+    memoServerSnapshot,
+  );
+  const [draft, setDraft] = useState("");
+
+  const add = () => {
+    const text = draft.trim();
+    if (!text) return;
+    commitMemos([
+      {
+        id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+        text,
+        at: Date.now(),
+      },
+      ...memoSnapshot(),
+    ]);
+    setDraft("");
+  };
+
+  const remove = (id: string) => {
+    commitMemos(memoSnapshot().filter((item) => item.id !== id));
+  };
+
   return (
     <div className="win-pane">
-      <div className="empty-block">
-        <span className="empty-icon" aria-hidden>
-          ✎
-        </span>
-        <h2 className="win-h1">{placeholder.memosEmptyTitle}</h2>
-        <p className="win-p">{placeholder.memosEmptyDesc}</p>
-      </div>
-      <div className="memo-strip" aria-hidden>
-        {["踩坑记录", "读到的", "小工具", "待验证"].map((item) => (
-          <span key={item} className="memo-chip">
-            {item}
+      <h2 className="win-h1">随笔</h2>
+      <p className="win-p">短想法、踩坑记录、读到的东西。写下来就不容易忘。</p>
+
+      <div className="memo-compose">
+        <textarea
+          className="memo-input"
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+              event.preventDefault();
+              add();
+            }
+          }}
+          placeholder="想到什么就写一句…"
+          rows={3}
+          aria-label="随笔内容"
+        />
+        <div className="memo-bar">
+          <span className="memo-count">
+            {draft.trim() ? `${draft.trim().length} 字` : "支持换行"}
           </span>
-        ))}
+          <button
+            type="button"
+            className="memo-send"
+            onClick={add}
+            disabled={!draft.trim()}
+          >
+            存下来
+          </button>
+        </div>
       </div>
+
+      {memos.length === 0 ? (
+        <div className="empty-block memo-empty">
+          <span className="empty-icon" aria-hidden>
+            ✎
+          </span>
+          <h3 className="memo-empty-title">{placeholder.memosEmptyTitle}</h3>
+          <p className="win-p">{placeholder.memosEmptyDesc}</p>
+        </div>
+      ) : (
+        <div className="memo-list">
+          {memos.map((memo) => (
+            <article key={memo.id} className="memo-item">
+              <div className="memo-meta">
+                <span>{formatTime(memo.at)}</span>
+                <button
+                  type="button"
+                  className="memo-del"
+                  onClick={() => remove(memo.id)}
+                  aria-label="删除这条随笔"
+                >
+                  删除
+                </button>
+              </div>
+              <p className="memo-text">{memo.text}</p>
+            </article>
+          ))}
+        </div>
+      )}
+
+      <p className="memo-tip">
+        随笔只保存在这台设备的浏览器里（共 {memos.length} 条），不会发到服务器，换设备看不到。
+      </p>
     </div>
   );
 }

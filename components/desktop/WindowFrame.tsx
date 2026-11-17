@@ -121,7 +121,7 @@ export default function WindowFrame({
           />
           <button
             type="button"
-            className="win-dot dot-green"
+            className="win-dot dot-green win-dot-max"
             aria-label={maximized ? "还原窗口" : "最大化窗口"}
             onClick={onToggleMax}
           />

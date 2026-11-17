@@ -8,7 +8,7 @@
 - 基于 **Next.js 16 App Router**（`output: "export"` 静态导出）+ React 19 + TypeScript + Tailwind CSS 4 + react-icons。
 - 产物是纯静态站点，部署在 GitHub Pages 子路径 `/lijiahao-portfolio`。
 - 线上地址：https://jilijhao.github.io/lijiahao-portfolio/
-- 没有后端、没有数据库、没有文章系统。项目与随笔窗口当前是**空状态**，等内容补齐。
+- 没有后端、没有数据库、没有文章系统。项目窗口当前是**空状态**，等内容补齐。随笔窗口有录入（存 `localStorage`，key `desktop.memos.v1`），只在本机可见、不联网，所以别把「公开可见的随笔」做在这里——那种内容要进 `lib/data.ts` 随仓库发布。
 
 ## 关键路径
 
@@ -41,12 +41,15 @@ pnpm lint     # ESLint
 1. **保持 `output: "export"` 兼容**：不要新增 serverless API 路由、SSR 路由或依赖运行时服务端的功能。桌面交互全部是客户端行为，不需要服务端。
 2. **生产态路径**：`basePath` / `assetPrefix` 只在 `NODE_ENV === "production"` 时设为 `/lijiahao-portfolio`。改动部署路径必须同步改 `next.config.ts`，并验证线上资源不 404。
 3. **窗口定位只用 CSS 变量**（`--wx / --wy / --ww / --wh`），不要在元素上写 `left/top` 内联样式 —— 移动端要靠样式表整体接管，内联样式会盖掉媒体查询。
-4. **拖拽只在 ≥768px 启用**，由 `WindowFrame` 在 `pointerdown` 时判断；移动端窗口全屏、不允许拖动。
+4. **拖拽只在 ≥768px 启用**，由 `WindowFrame` 在 `pointerdown` 时判断；窄屏下窗口铺满宽度、高度随内容、不允许拖动。
 5. **不要在 render 期间读 `ref.current`**（React 19 的 `react-hooks/refs` 规则会直接报错）。层级用 `activeId` state 表达，不要拿 ref 计数器参与渲染。
 6. **图标渐变用内联色值**，不要用 `lib` 里的 Tailwind 类名片段 —— Tailwind 扫不到会导致图标没底色。
 7. **隐私**：不要把手机号、薪资、求职意向、住址写进仓库，公开站点只保留邮箱与 GitHub 链接。教培相关案例必须使用合成数据。
 8. **依赖**：不轻易新增依赖；新增后必须同时更新 `pnpm-lock.yaml`。
 9. **图标三件套要同步**：`app/icon.svg` 是矢量源，`app/favicon.ico`（16/32/48）与 `app/apple-icon.png`（180）由它栅格化，改图形时三份一起换。`layout.tsx` 里必须**显式**声明 `icons`：只靠 `app/` 文件约定时 Next 只注入 `icon.svg`，而 Safari 不支持 SVG favicon，会退回去请求域名根目录的 `/favicon.ico` —— 站点在子路径下必然 404。图标 href 用相对路径，避免 `basePath` 被漏掉。
+10. **窄屏断点同时覆盖横屏手机**：条件是 `(max-width: 767px), (max-height: 460px) and (max-width: 900px)`。手机横屏宽度 >768 但高度只有 ~375，只按宽度判断会掉进桌面规则，窗口比视口还高、底部直接跑出屏幕。
+11. **窄屏下窗口只有一个**：窗口高度随内容自适（`height: auto` + `max-height`），叠放时后面的窗口会从前面下方露出一截，所以 `.win-shell:not(.is-active)` 直接 `display: none`。配套地，`Desktop.tsx` 用派生出来的 `activeWindow` 而不是裸的 `activeId` —— 否则关掉当前窗口后激活态还指向已关闭的窗口，手机上会一个窗口都不显示。
+12. **窗口尺寸在 resize 时要重算，不能只钳位置**：只钳 `x/y` 的话，桌面切到横屏时 `w/h` 还是旧值。`Desktop.tsx` 的 `onResize` 用 `Math.min(state.w, fit.w)` 收一次尺寸。
 
 ## 内容维护
 

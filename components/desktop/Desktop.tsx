@@ -79,6 +79,14 @@ export default function Desktop() {
   const [bounds, setBounds] = useState(BASE);
   const [activeId, setActiveId] = useState<AppId>("welcome");
 
+  // 关掉或最小化当前窗口后，激活态要落到剩下最高的一层。
+  // 移动端只呈现激活窗口，没有这层兜底会出现「一个窗口都不显示」。
+  const visibleTop = APPS.filter(
+    (app) => states[app.id].open && !states[app.id].minimized,
+  ).sort((a, b) => states[b.id].z - states[a.id].z)[0]?.id;
+  const activeWindow =
+    states[activeId].open && !states[activeId].minimized ? activeId : visibleTop;
+
   const openApp = useCallback((id: AppId) => {
     const app = APPS.find((item) => item.id === id);
     if (!app) return;
@@ -137,14 +145,21 @@ export default function Desktop() {
         const next = { ...prev };
         APPS.forEach((app) => {
           const state = next[app.id];
+          const fit = rectFor(app, vw, vh);
           if (!state.open) {
-            next[app.id] = { ...state, ...rectFor(app, vw, vh) };
+            next[app.id] = { ...state, ...fit };
             return;
           }
+          // 已打开的窗口也必须重新收一次宽高：只钳位置的话，
+          // 桌面切到手机横屏（高度骤减）时窗口会比视口还高，底部直接跑出屏幕。
+          const w = Math.min(state.w, fit.w);
+          const h = Math.min(state.h, fit.h);
           next[app.id] = {
             ...state,
-            x: clamp(state.x, 8, Math.max(8, vw - state.w - 8)),
-            y: clamp(state.y, 44, Math.max(44, vh - state.h - 12)),
+            w,
+            h,
+            x: clamp(state.x, 8, Math.max(8, vw - w - 8)),
+            y: clamp(state.y, 44, Math.max(44, vh - h - 12)),
           };
         });
         return next;
@@ -199,7 +214,7 @@ export default function Desktop() {
             rect={{ x: state.x, y: state.y, w: state.w, h: state.h }}
             z={state.z}
             maximized={state.maximized}
-            active={activeId === app.id}
+            active={activeWindow === app.id}
             bounds={bounds}
             onFocus={() => focusApp(app.id)}
             onClose={() => closeApp(app.id)}

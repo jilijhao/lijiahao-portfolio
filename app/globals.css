@@ -413,10 +413,13 @@ body {
 }
 
 .win-body {
-  flex: 1;
+  /* auto 基线：移动端窗口高度随内容收缩时，内容区仍按内容撑开 */
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
 }
@@ -476,6 +479,11 @@ body {
   font-size: 11.5px;
   line-height: 1.7;
   color: var(--text-faint);
+}
+
+/* 触屏提示默认不显示，由移动端断点接管切换 */
+.hint-touch {
+  display: none;
 }
 
 .win-actions {
@@ -638,20 +646,135 @@ body {
   color: #5d6c88;
 }
 
-.memo-strip {
+/* ============ 随笔：录入与列表 ============ */
+
+.memo-compose {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  flex-direction: column;
+  gap: 8px;
   margin-top: 16px;
-  opacity: 0.55;
 }
 
-.memo-chip {
-  padding: 4px 9px;
-  border: 1px dashed rgba(255, 255, 255, 0.15);
-  border-radius: 999px;
+.memo-input {
+  width: 100%;
+  min-height: 86px;
+  padding: 11px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #eaf2ff;
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.7;
+  resize: vertical;
+  transition: border-color 0.16s, background 0.16s;
+}
+
+.memo-input::placeholder {
+  color: #5d6c88;
+}
+
+.memo-input:focus {
+  outline: none;
+  border-color: rgba(125, 211, 252, 0.5);
+  background: rgba(125, 211, 252, 0.07);
+}
+
+.memo-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.memo-count {
+  font-size: 11.5px;
+  color: #5d6c88;
+}
+
+.memo-send {
+  margin-left: auto;
+  padding: 7px 16px;
+  border: 0;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #22d3ee, #7c5cf6);
+  color: #04121e;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter 0.16s, opacity 0.16s;
+}
+
+.memo-send:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.memo-send:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+
+.memo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.memo-item {
+  padding: 11px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.memo-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 11px;
-  color: #8797b3;
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+}
+
+.memo-del {
+  margin-left: auto;
+  padding: 2px 4px;
+  border: 0;
+  background: transparent;
+  color: #6b7a94;
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: color 0.16s;
+}
+
+.memo-del:hover {
+  color: #ff8b7f;
+}
+
+.memo-text {
+  margin-top: 6px;
+  font-size: 13.5px;
+  line-height: 1.75;
+  color: #dbe6f7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.memo-empty {
+  margin-top: 22px;
+}
+
+.memo-empty-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #c9d6ea;
+}
+
+.memo-tip {
+  margin-top: 18px;
+  font-size: 11px;
+  line-height: 1.7;
+  color: #55637d;
 }
 
 .contact-row {
@@ -798,7 +921,23 @@ body {
 
 /* ============ 移动端 ============ */
 
-@media (max-width: 767px) {
+/* ============ 移动端 / 窄屏 ============ */
+
+/* 除了竖屏手机，也覆盖「手机横屏」：宽度 >768 但高度很矮，
+   此时若沿用桌面规则，窗口会比视口还高，底部直接跑出屏幕。 */
+@media (max-width: 767px), (max-height: 460px) and (max-width: 900px) {
+  :root {
+    --menu-h: 44px;
+    /* 程序坞实际占位：上下内边距 + 图标高 + 刘海屏安全区 */
+    --dock-h: calc(60px + env(safe-area-inset-bottom));
+  }
+
+  .menu-bar {
+    height: var(--menu-h);
+    gap: 8px;
+    padding: 0 10px;
+  }
+
   .menu-links {
     display: none;
   }
@@ -807,12 +946,16 @@ body {
     display: none;
   }
 
+  .menu-brand {
+    padding: 4px 6px;
+  }
+
   .desk-icons {
     position: static;
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 2px;
-    padding: 52px 8px 0;
+    padding: calc(var(--menu-h) + 6px) 8px 0;
   }
 
   .desk-icon {
@@ -826,27 +969,105 @@ body {
     border-radius: 13px;
   }
 
+  /* 窗口铺满宽度，高度跟着内容走；内容过高才在窗口内滚动 */
   .win-shell,
   .win-shell.is-max {
-    left: 8px !important;
-    top: 50px !important;
-    right: 8px;
-    bottom: 82px;
+    left: max(8px, env(safe-area-inset-left)) !important;
+    top: calc(var(--menu-h) + 8px) !important;
+    right: max(8px, env(safe-area-inset-right));
+    bottom: auto;
     width: auto !important;
     height: auto !important;
-    border-radius: 14px;
+    max-height: calc(100dvh - var(--menu-h) - var(--dock-h) - 20px);
+    border-radius: 16px;
+    box-shadow: 0 14px 40px -10px rgba(0, 0, 0, 0.72);
   }
 
   .win-bar {
+    height: 40px;
+    padding: 0 8px;
     cursor: default;
+    /* 移动端不拖拽，交还滚动手势，避免在标题栏上滑动失效 */
+    touch-action: auto;
+  }
+
+  /* 圆点视觉仍约 12px，但按钮本体 34px —— 手指点得到 */
+  .win-dots {
+    gap: 0;
+  }
+
+  .win-dot {
+    width: 34px;
+    height: 34px;
+    background: transparent;
+  }
+
+  .win-dot::after {
+    display: none;
+  }
+
+  .win-dot::before {
+    content: "";
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #94a3b8;
+  }
+
+  .dot-red::before {
+    background: #ff5f57;
+  }
+
+  .dot-yellow::before {
+    background: #febc2e;
+  }
+
+  .dot-green::before {
+    background: #28c840;
+  }
+
+  /* 手机上窗口本来就是全宽，最大化没有意义 */
+  .win-dot-max {
+    display: none;
+  }
+
+  /* 手机上一次只呈现一个窗口：窗口高度随内容变化后，
+     高度不同的两个窗口叠放时，后面的会从前面下方露出一截 */
+  .win-shell:not(.is-active) {
+    display: none;
+  }
+
+  /* 「删除」两个字的点击区太小，用负边距外扩，视觉位置不变 */
+  .memo-del {
+    padding: 9px 7px;
+    margin: -9px -7px -9px auto;
+  }
+
+  .win-title {
+    font-size: 12.5px;
   }
 
   .win-pane {
+    max-width: 620px;
     padding: 16px 15px 20px;
   }
 
   .win-h1 {
-    font-size: 18px;
+    font-size: 17px;
+  }
+
+  /* 手机上拖拽手柄没意义，还会挡住右下角 */
+  .memo-input {
+    resize: none;
+  }
+
+  /* 换一套触屏说得通的提示 */
+  .hint-pointer {
+    display: none;
+  }
+
+  .hint-touch {
+    display: block;
   }
 
   .sticky-note {
@@ -857,20 +1078,47 @@ body {
     left: 0;
     right: 0;
     bottom: 0;
+    gap: 4px;
     justify-content: center;
-    padding: 8px 10px calc(10px + env(safe-area-inset-bottom));
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
     border-right: 0;
     border-bottom: 0;
     border-left: 0;
-    border-radius: 16px 16px 0 0;
+    border-radius: 18px 18px 0 0;
     overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
     transform: none;
+  }
+
+  .dock::-webkit-scrollbar {
+    display: none;
   }
 
   .dock-item {
     flex: none;
-    width: 42px;
-    height: 42px;
+    width: 44px;
+    height: 44px;
+  }
+
+  /* 触屏上 hover 会「粘住」，去掉位移 */
+  .dock-item:hover {
+    transform: none;
+  }
+}
+
+/* 很矮的视口（手机横屏）：把首屏能看到的操作区让出来 */
+@media (max-height: 520px) {
+  .memo-input {
+    min-height: 64px;
+  }
+
+  .win-pane {
+    padding: 12px 14px 16px;
+  }
+
+  .win-bar {
+    height: 36px;
   }
 }
 
