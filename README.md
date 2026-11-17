@@ -24,7 +24,7 @@
 | 欢迎 | 一句话定位 + 简介 + 三个去处 + 四个关键数字 |
 | 关于我 | 简介、四条做事方式、技术栈标签、教育经历 |
 | 项目 | **当前为空状态**，只有骨架卡片和去处提示 |
-| 随笔 | 可录入、删除随笔；存在浏览器 `localStorage`，只在本机可见 |
+| 随笔 | 内容存仓库 `data/memos.json`，所有设备看到同一份；站主授权后可页面内发布 |
 | 联系 | 邮箱、GitHub、个人工作台外链 |
 | 工作台 | 外链到 [personal-workbench](https://jilijhao.github.io/personal-workbench/) |
 

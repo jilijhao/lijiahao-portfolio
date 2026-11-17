@@ -8,7 +8,9 @@
 - 基于 **Next.js 16 App Router**（`output: "export"` 静态导出）+ React 19 + TypeScript + Tailwind CSS 4 + react-icons。
 - 产物是纯静态站点，部署在 GitHub Pages 子路径 `/lijiahao-portfolio`。
 - 线上地址：https://jilijhao.github.io/lijiahao-portfolio/
-- 没有后端、没有数据库、没有文章系统。项目窗口当前是**空状态**，等内容补齐。随笔窗口有录入（存 `localStorage`，key `desktop.memos.v1`），只在本机可见、不联网，所以别把「公开可见的随笔」做在这里——那种内容要进 `lib/data.ts` 随仓库发布。
+- 没有后端、没有数据库、没有文章系统。项目窗口当前是**空状态**，等内容补齐。
+- 随笔内容存在 `data/memos.json`，构建时静态导入，**所有设备与访客看到的是同一份**。写入靠站主本机的 GitHub Token 直接调 API 提交这个 JSON（`lib/memos.ts`），提交后 Actions 自动重建，约 1 分钟生效。
+- **Token 只存 `localStorage`（key `desktop.gh-token.v1`），绝不写进仓库、绝不硬编码**。未授权的访客是只读的，页面上不显示输入框。
 
 ## 关键路径
 
@@ -55,6 +57,8 @@ pnpm lint     # ESLint
 
 - 改定位、空状态提示、便签文案 → 改 `lib/desktop.ts` 的 `placeholder`。当前这些是**占位文案**，新定位定下来后整体替换。
 - 改姓名、邮箱、数字、技能、教育 → 改 `lib/data.ts`。
+- 写一条随笔（不碰代码）→ 页面上点「站主入口」填一次 Token，之后直接在窗口里写，会自动提交 `data/memos.json`。
+- 手写一条随笔 → 直接编辑 `data/memos.json`，加 `{ id, text, at }`，`at` 是毫秒时间戳，push 后自动上线。
 - 改窗口名称、图标、尺寸、Dock 顺序 → 改 `lib/desktop.ts` 的 `APPS`。
 - 新增一个窗口：① `APPS` 加一项（`window` 尺寸 + `offset` 错位序号）；② `AppId` / `IconKey` 补类型；③ `windows/index.tsx` 加内容组件；④ `Desktop.tsx` 的 `windowBody` 加分支。
 - 项目内容补齐时，替换 `ProjectsWindow` 里的骨架卡片，`placeholder.projectsEmpty*` 一并删除。

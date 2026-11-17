@@ -9,6 +9,17 @@ import {
   strengths,
 } from "@/lib/data";
 import { placeholder, type AppId } from "@/lib/desktop";
+import {
+  PUBLISHED_MEMOS,
+  formatTime,
+  publishMemos,
+  readStoredToken,
+  setStoredToken,
+  subscribeToken,
+  tokenServerSnapshot,
+  verifyToken,
+  type Memo,
+} from "@/lib/memos";
 
 type OpenFn = (id: AppId) => void;
 
@@ -140,139 +151,135 @@ export function ProjectsWindow({ onOpen }: { onOpen: OpenFn }) {
   );
 }
 
-/** 随笔窗口：暂无内容。 */
 /* ============ 随笔 ============ */
 
-type Memo = { id: string; text: string; at: number };
+type Status = { kind: "ok" | "err" | "busy"; text: string };
 
-/** 随笔存在浏览器本地，换设备 / 换浏览器 / 清缓存都会丢，所以只当随手记用。 */
-const MEMO_KEY = "desktop.memos.v1";
-
-const EMPTY_MEMOS: Memo[] = [];
-let memoCache: Memo[] | null = null;
-const memoListeners = new Set<() => void>();
-
-function readMemos(): Memo[] {
-  try {
-    const raw = window.localStorage.getItem(MEMO_KEY);
-    if (!raw) return [];
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (item): item is Memo =>
-        !!item &&
-        typeof (item as Memo).text === "string" &&
-        typeof (item as Memo).at === "number",
-    );
-  } catch {
-    return [];
-  }
-}
-
-/** 用 useSyncExternalStore 而不是「effect 里 setState」：
- *  一是静态导出时服务端没有 localStorage，首屏必须与客户端一致；
- *  二是多个标签页改随笔能自动同步。 */
-function memoSnapshot(): Memo[] {
-  if (memoCache === null) memoCache = readMemos();
-  return memoCache;
-}
-
-function memoServerSnapshot(): Memo[] {
-  return EMPTY_MEMOS;
-}
-
-function subscribeMemos(listener: () => void) {
-  memoListeners.add(listener);
-  const onStorage = (event: StorageEvent) => {
-    if (event.key !== null && event.key !== MEMO_KEY) return;
-    memoCache = readMemos();
-    memoListeners.forEach((fn) => fn());
-  };
-  window.addEventListener("storage", onStorage);
-  return () => {
-    memoListeners.delete(listener);
-    window.removeEventListener("storage", onStorage);
-  };
-}
-
-function commitMemos(next: Memo[]) {
-  memoCache = next;
-  try {
-    window.localStorage.setItem(MEMO_KEY, JSON.stringify(next));
-  } catch {
-    /* 无痕模式或配额满：当前会话照样能看，只是不会留存 */
-  }
-  memoListeners.forEach((fn) => fn());
-}
-
-function formatTime(at: number) {
-  const d = new Date(at);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(
-    d.getHours(),
-  )}:${pad(d.getMinutes())}`;
-}
-
+/**
+ * 随笔窗口：内容来自仓库的 data/memos.json，所以任何设备看到的都是同一份。
+ * 写入需要站主本机的 GitHub Token（只存 localStorage，不会进仓库）。
+ */
 export function MemosWindow() {
-  const memos = useSyncExternalStore(
-    subscribeMemos,
-    memoSnapshot,
-    memoServerSnapshot,
+  const token = useSyncExternalStore(
+    subscribeToken,
+    readStoredToken,
+    tokenServerSnapshot,
   );
+  const [memos, setMemos] = useState<Memo[]>(PUBLISHED_MEMOS);
   const [draft, setDraft] = useState("");
+  const [tokenInput, setTokenInput] = useState("");
+  const [showToken, setShowToken] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<Status | null>(null);
+  // 本次会话刚提交、还没等部署完的条目，标一个「部署中」
+  const [fresh, setFresh] = useState<string[]>([]);
+
+  const canWrite = Boolean(token);
+
+  const commit = async (next: Memo[], rollback: Memo[], okText: string) => {
+    if (!token) return;
+    setMemos(next);
+    setBusy(true);
+    setStatus({ kind: "busy", text: "正在提交到 GitHub…" });
+    try {
+      await publishMemos(token, next);
+      setStatus({ kind: "ok", text: okText });
+    } catch (error) {
+      setMemos(rollback);
+      setStatus({
+        kind: "err",
+        text: error instanceof Error ? error.message : "提交失败",
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const add = () => {
     const text = draft.trim();
-    if (!text) return;
-    commitMemos([
-      {
-        id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
-        text,
-        at: Date.now(),
-      },
-      ...memoSnapshot(),
-    ]);
+    if (!text || !canWrite || busy) return;
+    const memo: Memo = {
+      id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+      text,
+      at: Date.now(),
+    };
     setDraft("");
+    setFresh((prev) => [...prev, memo.id]);
+    void commit(
+      [memo, ...memos],
+      memos,
+      "已提交，约 1 分钟后全站生效（其他设备也能看到）",
+    );
   };
 
   const remove = (id: string) => {
-    commitMemos(memoSnapshot().filter((item) => item.id !== id));
+    if (!canWrite || busy) return;
+    void commit(
+      memos.filter((item) => item.id !== id),
+      memos,
+      "已提交删除，约 1 分钟后全站生效",
+    );
+  };
+
+  const saveToken = async () => {
+    const value = tokenInput.trim();
+    if (!value || busy) return;
+    setBusy(true);
+    setStatus({ kind: "busy", text: "正在校验 Token…" });
+    try {
+      await verifyToken(value);
+      setStoredToken(value);
+      setTokenInput("");
+      setShowToken(false);
+      setStatus({ kind: "ok", text: "已保存在这台设备，现在可以写了" });
+    } catch (error) {
+      setStatus({
+        kind: "err",
+        text: error instanceof Error ? error.message : "校验失败",
+      });
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
     <div className="win-pane">
       <h2 className="win-h1">随笔</h2>
-      <p className="win-p">短想法、踩坑记录、读到的东西。写下来就不容易忘。</p>
+      <p className="win-p">
+        短想法、踩坑记录、读到的东西。内容存在仓库里，换设备打开也是同一份。
+      </p>
 
-      <div className="memo-compose">
-        <textarea
-          className="memo-input"
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={(event) => {
-            if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-              event.preventDefault();
-              add();
-            }
-          }}
-          placeholder="想到什么就写一句…"
-          rows={3}
-          aria-label="随笔内容"
-        />
-        <div className="memo-bar">
-          <span className="memo-count">
-            {draft.trim() ? `${draft.trim().length} 字` : "支持换行"}
-          </span>
-          <button
-            type="button"
-            className="memo-send"
-            onClick={add}
-            disabled={!draft.trim()}
-          >
-            存下来
-          </button>
+      {canWrite ? (
+        <div className="memo-compose">
+          <textarea
+            className="memo-input"
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                event.preventDefault();
+                add();
+              }
+            }}
+            placeholder="想到什么就写一句…"
+            rows={3}
+            aria-label="随笔内容"
+          />
+          <div className="memo-bar">
+            <span className="memo-count">
+              {draft.trim() ? `${draft.trim().length} 字` : "支持换行"}
+            </span>
+            <button
+              type="button"
+              className="memo-send"
+              onClick={add}
+              disabled={!draft.trim() || busy}
+            >
+              {busy ? "提交中…" : "发布"}
+            </button>
+          </div>
         </div>
-      </div>
+      ) : null}
 
       {memos.length === 0 ? (
         <div className="empty-block memo-empty">
@@ -288,14 +295,20 @@ export function MemosWindow() {
             <article key={memo.id} className="memo-item">
               <div className="memo-meta">
                 <span>{formatTime(memo.at)}</span>
-                <button
-                  type="button"
-                  className="memo-del"
-                  onClick={() => remove(memo.id)}
-                  aria-label="删除这条随笔"
-                >
-                  删除
-                </button>
+                {fresh.includes(memo.id) ? (
+                  <span className="memo-badge">部署中</span>
+                ) : null}
+                {canWrite ? (
+                  <button
+                    type="button"
+                    className="memo-del"
+                    onClick={() => remove(memo.id)}
+                    disabled={busy}
+                    aria-label="删除这条随笔"
+                  >
+                    删除
+                  </button>
+                ) : null}
               </div>
               <p className="memo-text">{memo.text}</p>
             </article>
@@ -303,12 +316,81 @@ export function MemosWindow() {
         </div>
       )}
 
-      <p className="memo-tip">
-        随笔只保存在这台设备的浏览器里（共 {memos.length} 条），不会发到服务器，换设备看不到。
-      </p>
+      {status ? (
+        <p className={`memo-status is-${status.kind}`}>{status.text}</p>
+      ) : null}
+
+      {canWrite ? (
+        <p className="memo-tip">
+          发布权限保存在这台设备 ·{" "}
+          <button
+            type="button"
+            className="memo-link"
+            onClick={() => setStoredToken(null)}
+          >
+            移除
+          </button>
+        </p>
+      ) : showToken ? (
+        <div className="memo-token">
+          <p className="memo-token-title">站主写入授权</p>
+          <p className="memo-token-desc">
+            内容要通过 GitHub 提交才可能跨设备同步，所以需要一次性授权：
+            在 GitHub 建一个 Fine-grained token，只勾这个仓库的{" "}
+            <code>Contents: Read and write</code>，粘到下面。Token 只存在这台设备，不会上传，也不会进仓库。
+          </p>
+          <a
+            className="memo-token-link"
+            href="https://github.com/settings/tokens?type=beta"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            去创建 Token ↗
+          </a>
+          <input
+            className="memo-token-input"
+            type="password"
+            value={tokenInput}
+            onChange={(event) => setTokenInput(event.target.value)}
+            placeholder="github_pat_..."
+            autoComplete="off"
+            spellCheck={false}
+            aria-label="GitHub Token"
+          />
+          <div className="memo-bar">
+            <button
+              type="button"
+              className="memo-send"
+              onClick={saveToken}
+              disabled={!tokenInput.trim() || busy}
+            >
+              {busy ? "校验中…" : "保存并校验"}
+            </button>
+            <button
+              type="button"
+              className="memo-link"
+              onClick={() => setShowToken(false)}
+            >
+              取消
+            </button>
+          </div>
+        </div>
+      ) : (
+        <p className="memo-tip">
+          共 {memos.length} 条 · 只读 ·{" "}
+          <button
+            type="button"
+            className="memo-link"
+            onClick={() => setShowToken(true)}
+          >
+            站主入口
+          </button>
+        </p>
+      )}
     </div>
   );
 }
+
 
 /** 联系窗口：邮箱、GitHub、工作台。 */
 export function ContactWindow() {
