@@ -18,6 +18,8 @@
  * 输出约定：
  *   - 内容没变时不写文件，并打印 NO_CHANGE（定时任务可据此跳过提交）
  *   - 没有凭据时直接退出 0，保留现有文件，不会把线上随笔清空
+ *   - 接口出错时默认降级（打印 SYNC_FAILED，退出 0）：内容源坏了不该阻断站点发布。
+ *     想让它硬失败就加 --strict（本地手工排查时用）。
  */
 
 import fs from "node:fs";
@@ -128,6 +130,7 @@ async function fetchViaApi() {
 
 const args = process.argv.slice(2);
 const ndjsonIndex = args.indexOf("--from-ndjson");
+const STRICT = args.includes("--strict");
 
 let memos;
 if (ndjsonIndex !== -1) {
@@ -140,7 +143,16 @@ if (ndjsonIndex !== -1) {
     .filter(Boolean);
   memos = normalize(lines.map((line) => JSON.parse(line)));
 } else {
-  const records = await fetchViaApi();
+  let records;
+  try {
+    records = await fetchViaApi();
+  } catch (error) {
+    // 内容源挂了不该阻断站点发布：保留上一次的 data/memos.json，站点照常构建。
+    // 权限没开、token 过期、飞书抖动都走这条路。
+    console.log(`[memos] SYNC_FAILED 拉取失败，保留现有 data/memos.json —— ${error.message}`);
+    if (STRICT) process.exit(1);
+    process.exit(0);
+  }
   if (!records) {
     console.log("[memos] 未配置飞书自建应用凭据，跳过同步，保留现有 data/memos.json");
     process.exit(0);

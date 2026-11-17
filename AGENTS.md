@@ -53,12 +53,14 @@ pnpm lint     # ESLint
 10. **窄屏断点同时覆盖横屏手机**：条件是 `(max-width: 767px), (max-height: 460px) and (max-width: 900px)`。手机横屏宽度 >768 但高度只有 ~375，只按宽度判断会掉进桌面规则，窗口比视口还高、底部直接跑出屏幕。
 11. **窄屏下窗口只有一个**：窗口高度随内容自适（`height: auto` + `max-height`），叠放时后面的窗口会从前面下方露出一截，所以 `.win-shell:not(.is-active)` 直接 `display: none`。配套地，`Desktop.tsx` 用派生出来的 `activeWindow` 而不是裸的 `activeId` —— 否则关掉当前窗口后激活态还指向已关闭的窗口，手机上会一个窗口都不显示。
 12. **窗口尺寸在 resize 时要重算，不能只钳位置**：只钳 `x/y` 的话，桌面切到横屏时 `w/h` 还是旧值。`Desktop.tsx` 的 `onResize` 用 `Math.min(state.w, fit.w)` 收一次尺寸。
+13. **外部内容源失败不能阻断发布**：`scripts/sync-memos.mjs` 在接口报错时打印 `SYNC_FAILED`、保留原 `data/memos.json`、退出码 0，workflow 里再把它翻成 `::warning::`。想让同步失败就挂掉构建必须显式加 `--strict`。这条不要反着改 —— 飞书权限过期或抖动一天，站点不该跟着发不出去。
 
 ## 内容维护
 
 - 改定位、空状态提示、便签文案 → 改 `lib/desktop.ts` 的 `placeholder`。当前这些是**占位文案**，新定位定下来后整体替换。
 - 改姓名、邮箱、数字、技能、教育 → 改 `lib/data.ts`。
-- 写一条随笔 → 在飞书多维表格「个人站随笔」里加一行、勾上「发布」，然后跑同步（`pnpm sync:memos` 走 Actions 凭据，或 `lark-cli` 导出 NDJSON 后 `node scripts/sync-memos.mjs --from-ndjson <文件>`）。
+- 写一条随笔 → 在飞书多维表格「个人站随笔」里加一行、勾上「发布」，然后等 Actions 定时同步（每 6 小时，北京 02/08/14/20 点）或在 Actions 页面点 `Run workflow` 立刻生效。本地手动同步：`lark-cli base +record-list --format ndjson --output ./memos.ndjson --overwrite` 之后 `node scripts/sync-memos.mjs --from-ndjson ./memos.ndjson`。
+- 排查同步问题 → 加 `--strict` 跑一次，让真实错误冒出来而不是被降级吞掉。
 - 不要手改 `data/memos.json`——它是 `scripts/sync-memos.mjs` 的产物，下次同步会被覆盖。
 - 改窗口名称、图标、尺寸、Dock 顺序 → 改 `lib/desktop.ts` 的 `APPS`。
 - 新增一个窗口：① `APPS` 加一项（`window` 尺寸 + `offset` 错位序号）；② `AppId` / `IconKey` 补类型；③ `windows/index.tsx` 加内容组件；④ `Desktop.tsx` 的 `windowBody` 加分支。

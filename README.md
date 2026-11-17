@@ -75,19 +75,21 @@ pnpm build    # 产物在 out/
 | 创建时间 | 自动 | 系统生成，用来兜底排序 |
 | 发布 | 复选框 | **取消勾选 = 草稿，不上站**；新增行默认不勾，记得勾上 |
 
-**同步**：`node scripts/sync-memos.mjs` 把表格写成 `data/memos.json`，按时间倒序、跳过草稿与空行、内容没变时不写文件。
+**同步**：`node scripts/sync-memos.mjs` 把表格写成 `data/memos.json`，按时间倒序、跳过草稿与空行、内容没变时不写文件（打印 `NO_CHANGE`）。
+
+**失败不影响发布**：接口报错（权限没开、token 过期、飞书抖动）时脚本会打印 `SYNC_FAILED` 并保留上一次的 `data/memos.json`，退出码 0 —— 内容源坏了不该把站点拖下水，退化行为是「随笔停在上一版」。本地排查想让它硬失败，加 `--strict`。
 
 两种接入方式，任选其一：
 
-1. **GitHub Actions 直连**（推荐，全自动）：在飞书开放平台建一个自建应用，开通 `bitable:app:readonly`，把应用加为这张表的协作者，然后把 `FEISHU_APP_ID` / `FEISHU_APP_SECRET` / `FEISHU_BITABLE_TOKEN`（= `C0YpbtD3Jaik05suk4ZcB2JEnEb`）/ `FEISHU_TABLE_ID`（= `tblRPVQVpSdBylCc`）四个值写进仓库 Secrets。之后每次构建都会自动拉取。
-2. **本地或定时任务同步**（不用建应用）：用 `lark-cli` 导出 NDJSON 再喂给脚本：
+1. **GitHub Actions 直连**（已配好，全自动）：飞书自建应用 `cli_aa769b3b90f8dc09`，四个值 `FEISHU_APP_ID` / `FEISHU_APP_SECRET` / `FEISHU_BITABLE_TOKEN`（= `C0YpbtD3Jaik05suk4ZcB2JEnEb`）/ `FEISHU_TABLE_ID`（= `tblRPVQVpSdBylCc`）已写进仓库 Secrets。workflow 每 6 小时自动跑一次（北京 02/08/14/20 点），也可以在 Actions 页面点 `Run workflow` 立刻同步。
+2. **本地手动同步**（不用等定时）：用 `lark-cli` 导出 NDJSON 再喂给脚本：
    ```bash
    lark-cli base +record-list --base-token C0YpbtD3Jaik05suk4ZcB2JEnEb \
      --table-id tblRPVQVpSdBylCc \
-     --field-id 内容 --field-id 时间 --field-id 发布 --field-id 创建时间 \
-     --format ndjson --output /tmp/memos.ndjson --as user
+     --format ndjson --output ./memos.ndjson --overwrite --as user
    node scripts/sync-memos.mjs --from-ndjson /tmp/memos.ndjson
    ```
+   注意 `--output` 要配 `--overwrite`，否则同名文件存在时会静默不写。
 
 ## 部署
 
