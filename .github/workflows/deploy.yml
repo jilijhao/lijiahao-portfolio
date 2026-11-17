@@ -3,6 +3,8 @@ name: Deploy Next.js site to Pages
 on:
   push:
     branches: ["main"]
+  # 允许在 Actions 页面手动触发（飞书里改完想立刻生效时用）
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -25,6 +27,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+
+      # 从飞书多维表格拉随笔写成 data/memos.json。
+      # 没配 secrets 时会自己跳过（保留仓库里已有的文件），不影响构建。
+      - name: Sync memos from Feishu
+        run: node scripts/sync-memos.mjs
+        env:
+          FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
+          FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
+          FEISHU_BITABLE_TOKEN: ${{ secrets.FEISHU_BITABLE_TOKEN }}
+          FEISHU_TABLE_ID: ${{ secrets.FEISHU_TABLE_ID }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4

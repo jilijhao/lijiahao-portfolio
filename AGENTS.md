@@ -9,8 +9,9 @@
 - 产物是纯静态站点，部署在 GitHub Pages 子路径 `/lijiahao-portfolio`。
 - 线上地址：https://jilijhao.github.io/lijiahao-portfolio/
 - 没有后端、没有数据库、没有文章系统。项目窗口当前是**空状态**，等内容补齐。
-- 随笔内容存在 `data/memos.json`，构建时静态导入，**所有设备与访客看到的是同一份**。写入靠站主本机的 GitHub Token 直接调 API 提交这个 JSON（`lib/memos.ts`），提交后 Actions 自动重建，约 1 分钟生效。
-- **Token 只存 `localStorage`（key `desktop.gh-token.v1`），绝不写进仓库、绝不硬编码**。未授权的访客是只读的，页面上不显示输入框。
+- 随笔**唯一的写入入口是飞书多维表格**（「个人站随笔」，base `C0YpbtD3Jaik05suk4ZcB2JEnEb`，table `tblRPVQVpSdBylCc`）。站点只读。
+- `data/memos.json` 是**生成物**，由 `scripts/sync-memos.mjs` 产出，不要手改。同步规则：跳过「发布」未勾选的行、跳过空行、时间优先取「时间」字段、缺省回落到「创建时间」（不能用 `Date.now()` 兜底，否则每次输出都不同、永不幂等）、按时间倒序。
+- 多维表格的 API 需要 `app_secret` 换 `tenant_access_token`，**密钥不能进浏览器**，所以同步只能发生在构建前（Actions 读 Secrets）或本地（`lark-cli` 导出 NDJSON 再喂脚本）。站点里不要再加任何写入表单或 Token 输入框。
 
 ## 关键路径
 
@@ -57,8 +58,8 @@ pnpm lint     # ESLint
 
 - 改定位、空状态提示、便签文案 → 改 `lib/desktop.ts` 的 `placeholder`。当前这些是**占位文案**，新定位定下来后整体替换。
 - 改姓名、邮箱、数字、技能、教育 → 改 `lib/data.ts`。
-- 写一条随笔（不碰代码）→ 页面上点「站主入口」填一次 Token，之后直接在窗口里写，会自动提交 `data/memos.json`。
-- 手写一条随笔 → 直接编辑 `data/memos.json`，加 `{ id, text, at }`，`at` 是毫秒时间戳，push 后自动上线。
+- 写一条随笔 → 在飞书多维表格「个人站随笔」里加一行、勾上「发布」，然后跑同步（`pnpm sync:memos` 走 Actions 凭据，或 `lark-cli` 导出 NDJSON 后 `node scripts/sync-memos.mjs --from-ndjson <文件>`）。
+- 不要手改 `data/memos.json`——它是 `scripts/sync-memos.mjs` 的产物，下次同步会被覆盖。
 - 改窗口名称、图标、尺寸、Dock 顺序 → 改 `lib/desktop.ts` 的 `APPS`。
 - 新增一个窗口：① `APPS` 加一项（`window` 尺寸 + `offset` 错位序号）；② `AppId` / `IconKey` 补类型；③ `windows/index.tsx` 加内容组件；④ `Desktop.tsx` 的 `windowBody` 加分支。
 - 项目内容补齐时，替换 `ProjectsWindow` 里的骨架卡片，`placeholder.projectsEmpty*` 一并删除。

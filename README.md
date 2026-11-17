@@ -24,7 +24,7 @@
 | 欢迎 | 一句话定位 + 简介 + 三个去处 + 四个关键数字 |
 | 关于我 | 简介、四条做事方式、技术栈标签、教育经历 |
 | 项目 | **当前为空状态**，只有骨架卡片和去处提示 |
-| 随笔 | 内容存仓库 `data/memos.json`，所有设备看到同一份；站主授权后可页面内发布 |
+| 随笔 | 内容来自飞书多维表格，构建前同步成 `data/memos.json`；站点只读 |
 | 联系 | 邮箱、GitHub、个人工作台外链 |
 | 工作台 | 外链到 [personal-workbench](https://jilijhao.github.io/personal-workbench/) |
 
@@ -54,16 +54,44 @@ pnpm build    # 产物在 out/
 
 ## 更新内容
 
-两处数据源，按改什么选：
+三个数据源，按改什么选：
 
 - **[`lib/desktop.ts`](lib/desktop.ts)** —— 窗口清单（名称、图标、渐变色、初始尺寸与错位）、Dock 顺序，以及**待替换的占位文案**（`placeholder`）。改定位、改空状态提示、加窗口都改这里。
 - **[`lib/data.ts`](lib/data.ts)** —— 个人资料：姓名、邮箱、GitHub、关键数字、优势、技能分组、教育经历。
+- **[`data/memos.json`](data/memos.json)** —— 随笔。**不要手改**，它由飞书多维表格同步而来（见下节）。
 
 组件只负责渲染，不含硬编码业务文案。不要写手机号、薪资、求职意向等私人信息到公开仓库。
 
+## 随笔：飞书多维表格
+
+写的地方是飞书，站点只读。多维表格的 API 需要 `app_secret` 换 `tenant_access_token`，密钥不能进浏览器，所以同步放在构建前做。
+
+**表格结构**（[个人站随笔](https://ycnlrrcsi8yp.feishu.cn/base/C0YpbtD3Jaik05suk4ZcB2JEnEb)）：
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| 内容 | 多行文本 | 必填，空行会被忽略 |
+| 时间 | 日期 | 可选；不填就用「创建时间」 |
+| 创建时间 | 自动 | 系统生成，用来兜底排序 |
+| 发布 | 复选框 | **取消勾选 = 草稿，不上站**；新增行默认不勾，记得勾上 |
+
+**同步**：`node scripts/sync-memos.mjs` 把表格写成 `data/memos.json`，按时间倒序、跳过草稿与空行、内容没变时不写文件。
+
+两种接入方式，任选其一：
+
+1. **GitHub Actions 直连**（推荐，全自动）：在飞书开放平台建一个自建应用，开通 `bitable:app:readonly`，把应用加为这张表的协作者，然后把 `FEISHU_APP_ID` / `FEISHU_APP_SECRET` / `FEISHU_BITABLE_TOKEN`（= `C0YpbtD3Jaik05suk4ZcB2JEnEb`）/ `FEISHU_TABLE_ID`（= `tblRPVQVpSdBylCc`）四个值写进仓库 Secrets。之后每次构建都会自动拉取。
+2. **本地或定时任务同步**（不用建应用）：用 `lark-cli` 导出 NDJSON 再喂给脚本：
+   ```bash
+   lark-cli base +record-list --base-token C0YpbtD3Jaik05suk4ZcB2JEnEb \
+     --table-id tblRPVQVpSdBylCc \
+     --field-id 内容 --field-id 时间 --field-id 发布 --field-id 创建时间 \
+     --format ndjson --output /tmp/memos.ndjson --as user
+   node scripts/sync-memos.mjs --from-ndjson /tmp/memos.ndjson
+   ```
+
 ## 部署
 
-push 到 `main` 自动触发 `.github/workflows/deploy.yml`：pnpm 安装 → `pnpm build` → 上传 `out/` → 发布 Pages。
+push 到 `main` 自动触发 `.github/workflows/deploy.yml`：pnpm 安装 → 飞书随笔同步 → `pnpm build` → 上传 `out/` → 发布 Pages。
 
 生产态通过 `next.config.ts` 的 `basePath` / `assetPrefix` 挂到 `/lijiahao-portfolio` 子路径；改部署路径时必须同步改这两处。GitHub Pages 只能托管静态文件，站点不含任何服务端能力。
 
