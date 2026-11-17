@@ -61,6 +61,7 @@ pnpm lint     # ESLint
 - 改姓名、邮箱、数字、技能、教育 → 改 `lib/data.ts`。
 - 写一条随笔 → 在飞书多维表格「个人站随笔」里加一行、勾上「发布」，然后等 Actions 定时同步（每 6 小时，北京 02/08/14/20 点）或在 Actions 页面点 `Run workflow` 立刻生效。本地手动同步：`lark-cli base +record-list --format ndjson --output ./memos.ndjson --overwrite` 之后 `node scripts/sync-memos.mjs --from-ndjson ./memos.ndjson`。
 - 排查同步问题 → 加 `--strict` 跑一次，让真实错误冒出来而不是被降级吞掉。
+- **仓库里的 `data/memos.json` 是「降级兜底快照」**：CI 只在构建时同步、不回写仓库，所以某次接口失败降级时，线上退回去的就是仓库里这份。本地跑完 `pnpm sync:memos` 且结果有变化时，顺手把 `data/memos.json` 一起提交，快照才不会太旧。不要手写内容，只能由脚本生成。
 - 不要手改 `data/memos.json`——它是 `scripts/sync-memos.mjs` 的产物，下次同步会被覆盖。
 - 改窗口名称、图标、尺寸、Dock 顺序 → 改 `lib/desktop.ts` 的 `APPS`。
 - 新增一个窗口：① `APPS` 加一项（`window` 尺寸 + `offset` 错位序号）；② `AppId` / `IconKey` 补类型；③ `windows/index.tsx` 加内容组件；④ `Desktop.tsx` 的 `windowBody` 加分支。
