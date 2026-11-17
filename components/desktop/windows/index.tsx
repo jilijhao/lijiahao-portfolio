@@ -281,6 +281,10 @@ export function MemosWindow() {
         </div>
       ) : null}
 
+      {status ? (
+        <p className={`memo-status is-${status.kind}`}>{status.text}</p>
+      ) : null}
+
       {memos.length === 0 ? (
         <div className="empty-block memo-empty">
           <span className="empty-icon" aria-hidden>
@@ -315,10 +319,6 @@ export function MemosWindow() {
           ))}
         </div>
       )}
-
-      {status ? (
-        <p className={`memo-status is-${status.kind}`}>{status.text}</p>
-      ) : null}
 
       {canWrite ? (
         <p className="memo-tip">
