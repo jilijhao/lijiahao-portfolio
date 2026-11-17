@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="李家豪">
+  <defs>
+    <linearGradient id="plate" x1="12" y1="4" x2="52" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#35dff2"/>
+      <stop offset="1" stop-color="#7c5cf6"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="40" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".2"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14.5" fill="url(#plate)"/>
+  <rect width="64" height="64" rx="14.5" fill="url(#sheen)"/>
+  <rect x=".5" y=".5" width="63" height="63" rx="14" fill="none"
+        stroke="#ffffff" stroke-opacity=".16"/>
+  <path d="M23.75 20.2 V38.6 a6.6 6.6 0 0 0 6.6 6.6 H40.9"
+        fill="none" stroke="#ffffff" stroke-width="6.6"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

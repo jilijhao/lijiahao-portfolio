@@ -71,6 +71,9 @@ push 到 `main` 自动触发 `.github/workflows/deploy.yml`：pnpm 安装 → `p
 
 ```
 app/                          页面入口、根布局、全局样式
+  icon.svg                    站点图标矢量源（浏览器标签页、书签）
+  favicon.ico                 16/32/48 三档位图，给不支持 SVG 图标的浏览器（Safari）
+  apple-icon.png              180×180 满幅方图，iOS 添加到主屏时使用
 components/desktop/
   Desktop.tsx                 桌面壳：窗口状态、打开/聚焦/关闭、Esc
   WindowFrame.tsx             可拖拽窗口外壳（三色圆点、标题、边界约束）
@@ -85,3 +88,5 @@ public/                       静态资源
 .github/workflows/            Pages 部署流水线
 AGENTS.md                     协作规范与硬性约束
 ```
+
+图标是一套：`icon.svg` 是源，`favicon.ico` 与 `apple-icon.png` 由它栅格化而来，改图形时三份要一起换。菜单栏左侧的品牌标（`.menu-brand-mark`）用的是同一套渐变与字色，改配色时两处要同步。

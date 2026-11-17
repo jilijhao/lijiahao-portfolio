@@ -46,6 +46,7 @@ pnpm lint     # ESLint
 6. **图标渐变用内联色值**，不要用 `lib` 里的 Tailwind 类名片段 —— Tailwind 扫不到会导致图标没底色。
 7. **隐私**：不要把手机号、薪资、求职意向、住址写进仓库，公开站点只保留邮箱与 GitHub 链接。教培相关案例必须使用合成数据。
 8. **依赖**：不轻易新增依赖；新增后必须同时更新 `pnpm-lock.yaml`。
+9. **图标三件套要同步**：`app/icon.svg` 是矢量源，`app/favicon.ico`（16/32/48）与 `app/apple-icon.png`（180）由它栅格化，改图形时三份一起换。`layout.tsx` 里必须**显式**声明 `icons`：只靠 `app/` 文件约定时 Next 只注入 `icon.svg`，而 Safari 不支持 SVG favicon，会退回去请求域名根目录的 `/favicon.ico` —— 站点在子路径下必然 404。图标 href 用相对路径，避免 `basePath` 被漏掉。
 
 ## 内容维护
 

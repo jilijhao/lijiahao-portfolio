@@ -119,9 +119,10 @@ body {
   place-items: center;
   width: 20px;
   height: 20px;
-  border-radius: 6px;
-  background: linear-gradient(135deg, #22d3ee, #3b82f6);
-  color: #04121e;
+  /* 与 app/icon.svg（favicon）保持同一套渐变与字色，标签页和页头才是同一个标 */
+  border-radius: 5px;
+  background: linear-gradient(135deg, #35dff2, #7c5cf6);
+  color: #ffffff;
   font-size: 11px;
   font-weight: 800;
 }
